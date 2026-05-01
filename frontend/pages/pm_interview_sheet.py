@@ -6,7 +6,6 @@ def show(API_URL, headers):
     st.title("👥 Interview Sheet")
     st.caption("Add and manage interviewees for your projects")
 
-    # Load projects for dropdown
     with st.spinner("Loading projects..."):
         try:
             r = requests.get(f"{API_URL}/projects/", headers=headers)
@@ -19,7 +18,6 @@ def show(API_URL, headers):
         st.info("No projects yet. Create one in the Time Tracker first!")
         return
 
-    # Load dropdowns
     def get_dropdown(category):
         try:
             r = requests.get(f"{API_URL}/admin/dropdowns", headers=headers)
@@ -35,17 +33,13 @@ def show(API_URL, headers):
     country_options = get_dropdown("country")
     recruiting_options = get_dropdown("recruiting_partner")
 
-    # Project selector
     project_map = {
         f"{p['project_name']} ({p['project_number']})": p
         for p in projects
     }
-    selected_label = st.selectbox(
-        "Select Project", list(project_map.keys())
-    )
+    selected_label = st.selectbox("Select Project", list(project_map.keys()))
     selected_project = project_map[selected_label]
 
-    # Load interviews for selected project
     with st.spinner("Loading interviews..."):
         try:
             r = requests.get(
@@ -58,18 +52,15 @@ def show(API_URL, headers):
             st.error(f"Error: {e}")
             return
 
-    # Tabs
     tab1, tab2 = st.tabs([
         f"📋 Interviews ({len(interviews)})",
         "➕ Add Interviewee"
     ])
 
-    # ── Tab 1: View all interviews ──────────────────────────────
     with tab1:
         if not interviews:
             st.info("No interviewees added yet for this project.")
         else:
-            # Summary
             df = pd.DataFrame(interviews)
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Total", len(df))
@@ -82,7 +73,6 @@ def show(API_URL, headers):
 
             st.divider()
 
-            # Filter by interviewer
             interviewers = ["All"] + sorted(
                 df["interviewer"].dropna().unique().tolist()
             )
@@ -94,7 +84,6 @@ def show(API_URL, headers):
 
             st.write(f"Showing **{len(df)}** interviewees")
 
-            # Display each interview
             for _, row in df.iterrows():
                 with st.expander(
                     f"🏢 {row.get('interviewed_org_name', 'Unknown')} — "
@@ -127,7 +116,6 @@ def show(API_URL, headers):
                         st.write("**Notes**")
                         st.write(row.get("interviewer_notes", ""))
 
-                    # PM can edit all fields
                     st.write("### ✏️ Edit")
                     ecol1, ecol2, ecol3 = st.columns(3)
 
@@ -222,8 +210,7 @@ def show(API_URL, headers):
                             key=f"enotes_{row['id']}"
                         )
 
-                    if st.button("💾 Save Changes",
-                                 key=f"esave_{row['id']}"):
+                    if st.button("💾 Save Changes", key=f"esave_{row['id']}"):
                         payload = {
                             "interviewee_name": e_name,
                             "interviewee_title": e_title,
@@ -235,8 +222,7 @@ def show(API_URL, headers):
                             "recruiting_partner": e_partner or None,
                             "interviewer": e_interviewer,
                             "interview_status": e_status,
-                            "date_of_interview": str(e_date)
-                            if e_date else None,
+                            "date_of_interview": str(e_date) if e_date else None,
                             "interview_quality": e_quality or None,
                             "interviewer_notes": e_notes or None,
                         }
@@ -254,7 +240,6 @@ def show(API_URL, headers):
                         except Exception as e:
                             st.error(f"Error: {e}")
 
-    # ── Tab 2: Add new interviewee ──────────────────────────────
     with tab2:
         st.write(f"### Add Interviewee to {selected_project['project_name']}")
 
@@ -271,26 +256,18 @@ def show(API_URL, headers):
 
             with col2:
                 st.write("**Classification**")
-                country = st.selectbox(
-                    "Country", [""] + country_options
-                )
-                industry = st.selectbox(
-                    "Industry", [""] + industry_options
-                )
+                country = st.selectbox("Country", [""] + country_options)
+                industry = st.selectbox("Industry", [""] + industry_options)
                 recruiting_partner = st.selectbox(
                     "Recruiting Partner", [""] + recruiting_options
                 )
-                date_provided = st.date_input(
-                    "Date Provided", value=None
-                )
+                date_provided = st.date_input("Date Provided", value=None)
 
             with col3:
                 st.write("**Assignment**")
                 interviewer = st.text_input("Assigned Interviewer")
                 scheduling_link = st.text_input("Scheduling Link")
-                initial_status = st.selectbox(
-                    "Initial Status", status_options
-                )
+                initial_status = st.selectbox("Initial Status", status_options)
                 notes = st.text_area("Initial Notes")
 
             submit = st.form_submit_button(
@@ -299,15 +276,40 @@ def show(API_URL, headers):
 
             if submit:
                 if not interviewee_name and not org_name:
-                    st.error(
-                        "Please enter at least a name or company!"
-                    )
+                    st.error("Please enter at least a name or company!")
                 elif not interviewer:
                     st.error("Please assign an interviewer!")
                 else:
                     payload = {
                         "project_id": selected_project["id"],
-                        "project_number": selected_project[
-                            "project_number"],
+                        "project_number": selected_project["project_number"],
                         "project_name": selected_project["project_name"],
-                        "idc_project_manager": select
+                        "idc_project_manager": selected_project.get("bvd", ""),
+                        "bv_project_manager": selected_project.get("bv_lead", ""),
+                        "interviewee_name": interviewee_name,
+                        "interviewee_title": interviewee_title,
+                        "interviewee_email": interviewee_email,
+                        "interviewee_phone": interviewee_phone,
+                        "interviewed_org_name": org_name,
+                        "country": country or None,
+                        "industry": industry or None,
+                        "recruiting_partner": recruiting_partner or None,
+                        "date_provided": str(date_provided) if date_provided else None,
+                        "interviewer": interviewer,
+                        "scheduling_link": scheduling_link or None,
+                        "interview_status": initial_status,
+                        "interviewer_notes": notes or None,
+                    }
+                    try:
+                        r = requests.post(
+                            f"{API_URL}/interviews/",
+                            json=payload,
+                            headers=headers
+                        )
+                        if r.status_code == 200:
+                            st.success(f"✅ {interviewee_name} added!")
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {r.text}")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
