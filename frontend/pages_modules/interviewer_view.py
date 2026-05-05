@@ -22,31 +22,42 @@ def show(API_URL, headers):
         return
 
     # Load dropdowns directly
-    try:
-        r = requests.get(
-            f"{API_URL}/admin/dropdowns", headers=headers
-        )
-        all_dropdowns = r.json()
-        status_options = [
-            d["value"] for d in all_dropdowns
-            if d["category"] == "interview_status"
-            and d["is_active"]
-        ]
-        quality_options = [
-            d["value"] for d in all_dropdowns
-            if d["category"] == "interview_quality"
-            and d["is_active"]
-        ]
-    except Exception as e:
-        st.warning(f"Could not load dropdowns: {e}")
-        status_options = [
-            "Not Contacted", "Contacted", "Scheduled",
-            "Being Rescheduled", "No Show", "On Hold",
-            "Completed", "Cancelled", "Declined",
-            "Disqualified"
-        ]
-        quality_options = ["Excellent", "Good", "Fair", "Poor"]
+   try:
+    	r = requests.get(
+       	 f"{API_URL}/admin/dropdowns", headers=headers
+    )
+    raw = r.json()
+    # Handle both list and dict responses
+    if isinstance(raw, list):
+        all_dropdowns = raw
+    elif isinstance(raw, dict):
+        all_dropdowns = list(raw.values()) \
+            if raw else []
+    else:
+        all_dropdowns = []
 
+    status_options = [
+        d["value"] for d in all_dropdowns
+        if isinstance(d, dict)
+        and d.get("category") == "interview_status"
+        and d.get("is_active")
+    ]
+    quality_options = [
+        d["value"] for d in all_dropdowns
+        if isinstance(d, dict)
+        and d.get("category") == "interview_quality"
+        and d.get("is_active")
+    ]
+except Exception as e:
+    st.warning(f"Could not load dropdowns: {e}")
+    status_options = [
+        "Not Contacted", "Contacted", "Scheduled",
+        "Being Rescheduled", "No Show", "On Hold",
+        "Completed", "Cancelled", "Declined",
+        "Disqualified"
+    ]
+    quality_options = ["Excellent", "Good", "Fair", "Poor"]
+     
     df = pd.DataFrame(data)
 
     # Clean nan values
