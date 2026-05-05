@@ -188,11 +188,16 @@ def show(API_URL, headers):
                             in status_options else 0,
                             key=f"estatus_{row['id']}"
                         )
+                        try:
+                            e_date_val = pd.to_datetime(
+                                row["date_of_interview"]
+                            ).date() if row.get("date_of_interview") else None
+                        except Exception:
+                            e_date_val = None
+
                         e_date = st.date_input(
                             "Date of Interview",
-                            value=pd.to_datetime(
-                                row["date_of_interview"]).date()
-                            if row.get("date_of_interview") else None,
+                            value=e_date_val,
                             key=f"edate_{row['id']}"
                         )
                         e_quality = st.selectbox(
