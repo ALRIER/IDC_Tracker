@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 
+
 def show(API_URL, headers):
     st.title("👥 Interview Sheet")
     st.caption("Add and manage interviewees for your projects")
@@ -27,17 +28,44 @@ def show(API_URL, headers):
         except:
             return []
 
+    def safe_date(val):
+        """Safely convert any value to a date or None"""
+        if val is None or val == "" or val == "nan":
+            return None
+        try:
+            result = pd.to_datetime(val)
+            if pd.isna(result):
+                return None
+            return result.date()
+        except Exception:
+            return None
+
     status_options = get_dropdown("interview_status")
     quality_options = get_dropdown("interview_quality")
     industry_options = get_dropdown("industry")
     country_options = get_dropdown("country")
     recruiting_options = get_dropdown("recruiting_partner")
 
+    # Get list of interviewers for dropdown
+    try:
+        r = requests.get(f"{API_URL}/admin/users", headers=headers)
+        all_users = r.json()
+        interviewer_names = sorted([
+            u["interviewer_name"] for u in all_users
+            if u.get("role") == "interviewer"
+            and u.get("interviewer_name")
+            and u.get("is_active")
+        ])
+    except Exception:
+        interviewer_names = []
+
     project_map = {
         f"{p['project_name']} ({p['project_number']})": p
         for p in projects
     }
-    selected_label = st.selectbox("Select Project", list(project_map.keys()))
+    selected_label = st.selectbox(
+        "Select Project", list(project_map.keys())
+    )
     selected_project = project_map[selected_label]
 
     with st.spinner("Loading interviews..."):
@@ -57,11 +85,14 @@ def show(API_URL, headers):
         "➕ Add Interviewee"
     ])
 
+    # ── Tab 1: View interviews ───────────────────────────────────
     with tab1:
         if not interviews:
             st.info("No interviewees added yet for this project.")
         else:
             df = pd.DataFrame(interviews)
+            df = df.fillna("").replace("nan", "")
+
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Total", len(df))
             col2.metric("Completed",
@@ -107,17 +138,23 @@ def show(API_URL, headers):
                         st.write("**Interview Info**")
                         st.write(f"Interviewer: {row.get('interviewer', '')}")
                         st.write(f"Status: {row.get('interview_status', '')}")
-                        st.write(f"Date: {row.get('date_of_interview', '')}")
+                        st.write(f"Date of Interview: {row.get('date_of_interview', '')}")
                         st.write(f"Quality: {row.get('interview_quality', '')}")
-                        st.write(f"Partner: {row.get('recruiting_partner', '')}")
+                        st.write(f"Source: {row.get('recruiting_partner', '')}")
                         st.write(f"Date Provided: {row.get('date_provided', '')}")
+                        st.write(f"Last Contacted: {row.get('last_date_of_contact', '')}")
 
                     with col3:
                         st.write("**Notes**")
-                        st.write(row.get("interviewer_notes", ""))
+                        notes_val = row.get("interviewer_notes", "")
+                        if notes_val == "nan":
+                            notes_val = ""
+                        st.write(notes_val)
 
-                    st.write("### ✏️ Edit")
-                    ecol1, ecol2, ecol3 = st.columns(3)
+                    # PM can edit contact/assignment fields only
+                    # Interviewers handle status/date/quality/notes
+                    st.write("### ✏️ Edit Contact Info")
+                    ecol1, ecol2 = st.columns(2)
 
                     with ecol1:
                         e_name = st.text_input(
@@ -164,7 +201,7 @@ def show(API_URL, headers):
                             key=f"eindustry_{row['id']}"
                         )
                         e_partner = st.selectbox(
-                            "Recruiting Partner",
+                            "Source / Recruiting Partner",
                             [""] + recruiting_options,
                             index=([""] + recruiting_options).index(
                                 row.get("recruiting_partner", ""))
@@ -172,50 +209,28 @@ def show(API_URL, headers):
                             in recruiting_options else 0,
                             key=f"epartner_{row['id']}"
                         )
-                        e_interviewer = st.text_input(
+                        # Interviewer as dropdown
+                        interviewer_opts = [""] + interviewer_names
+                        current_int = row.get("interviewer") or ""
+                        int_idx = interviewer_opts.index(current_int) \
+                            if current_int in interviewer_opts else 0
+                        e_interviewer = st.selectbox(
                             "Assigned Interviewer",
-                            value=row.get("interviewer") or "",
+                            interviewer_opts,
+                            index=int_idx,
                             key=f"einterviewer_{row['id']}"
                         )
 
-                    with ecol3:
-                        e_status = st.selectbox(
-                            "Status",
-                            status_options,
-                            index=status_options.index(
-                                row["interview_status"])
-                            if row.get("interview_status")
-                            in status_options else 0,
-                            key=f"estatus_{row['id']}"
-                        )
-                        try:
-                            e_date_val = pd.to_datetime(
-                                row["date_of_interview"]
-                            ).date() if row.get("date_of_interview") else None
-                        except Exception:
-                            e_date_val = None
-
-                        e_date = st.date_input(
-                            "Date of Interview",
-                            value=e_date_val,
-                            key=f"edate_{row['id']}"
-                        )
-                        e_quality = st.selectbox(
-                            "Quality",
-                            [""] + quality_options,
-                            index=([""] + quality_options).index(
-                                row.get("interview_quality", ""))
-                            if row.get("interview_quality")
-                            in quality_options else 0,
-                            key=f"equality_{row['id']}"
-                        )
-                        e_notes = st.text_area(
-                            "Notes",
-                            value=row.get("interviewer_notes") or "",
-                            key=f"enotes_{row['id']}"
+                        e_date_provided = st.date_input(
+                            "Date Provided",
+                            value=safe_date(row.get("date_provided")),
+                            key=f"edateprov_{row['id']}"
                         )
 
-                    if st.button("💾 Save Changes", key=f"esave_{row['id']}"):
+                    if st.button(
+                        "💾 Save Contact Info",
+                        key=f"esave_{row['id']}"
+                    ):
                         payload = {
                             "interviewee_name": e_name,
                             "interviewee_title": e_title,
@@ -225,11 +240,9 @@ def show(API_URL, headers):
                             "country": e_country or None,
                             "industry": e_industry or None,
                             "recruiting_partner": e_partner or None,
-                            "interviewer": e_interviewer,
-                            "interview_status": e_status,
-                            "date_of_interview": str(e_date) if e_date else None,
-                            "interview_quality": e_quality or None,
-                            "interviewer_notes": e_notes or None,
+                            "interviewer": e_interviewer or None,
+                            "date_provided": str(e_date_provided)
+                            if e_date_provided else None,
                         }
                         try:
                             r = requests.patch(
@@ -245,34 +258,59 @@ def show(API_URL, headers):
                         except Exception as e:
                             st.error(f"Error: {e}")
 
+    # ── Tab 2: Add new interviewee ───────────────────────────────
     with tab2:
-        st.write(f"### Add Interviewee to {selected_project['project_name']}")
+        st.write(
+            f"### Add Interviewee to "
+            f"{selected_project['project_name']}"
+        )
+        st.caption("Fields marked with * are required")
 
         with st.form("new_interview_form"):
             col1, col2, col3 = st.columns(3)
 
             with col1:
                 st.write("**Contact Info**")
-                interviewee_name = st.text_input("Interviewee Name")
-                interviewee_title = st.text_input("Title")
+                interviewee_name = st.text_input("Interviewee Name *")
+                interviewee_title = st.text_input("Title *")
                 interviewee_email = st.text_input("Email")
                 interviewee_phone = st.text_input("Phone")
-                org_name = st.text_input("Company Name")
+                org_name = st.text_input("Company Name *")
 
             with col2:
                 st.write("**Classification**")
-                country = st.selectbox("Country", [""] + country_options)
-                industry = st.selectbox("Industry", [""] + industry_options)
-                recruiting_partner = st.selectbox(
-                    "Recruiting Partner", [""] + recruiting_options
+                country = st.selectbox(
+                    "Country *", [""] + country_options
                 )
-                date_provided = st.date_input("Date Provided", value=None)
+                industry = st.selectbox(
+                    "Industry *", [""] + industry_options
+                )
+                recruiting_partner = st.selectbox(
+                    "Source / Recruiting Partner *",
+                    [""] + recruiting_options
+                )
+                date_provided = st.date_input(
+                    "Date Provided *", value=None
+                )
 
             with col3:
-                st.write("**Assignment**")
-                interviewer = st.text_input("Assigned Interviewer")
+                st.write("**Assignment & Status**")
+                # Interviewer dropdown
+                interviewer = st.selectbox(
+                    "Assigned Interviewer *",
+                    [""] + interviewer_names
+                )
                 scheduling_link = st.text_input("Scheduling Link")
-                initial_status = st.selectbox("Initial Status", status_options)
+                initial_status = st.selectbox(
+                    "Initial Status *",
+                    [""] + status_options
+                )
+                # Show last contacted date if status is Contacted
+                last_contacted = st.date_input(
+                    "Last Date of Contact",
+                    value=None,
+                    help="Fill this if status is Contacted or beyond"
+                )
                 notes = st.text_area("Initial Notes")
 
             submit = st.form_submit_button(
@@ -280,29 +318,59 @@ def show(API_URL, headers):
             )
 
             if submit:
-                if not interviewee_name and not org_name:
-                    st.error("Please enter at least a name or company!")
-                elif not interviewer:
-                    st.error("Please assign an interviewer!")
+                # Validate required fields
+                errors = []
+                if not interviewee_name:
+                    errors.append("Interviewee Name")
+                if not interviewee_title:
+                    errors.append("Title")
+                if not org_name:
+                    errors.append("Company Name")
+                if not country:
+                    errors.append("Country")
+                if not industry:
+                    errors.append("Industry")
+                if not recruiting_partner:
+                    errors.append("Source / Recruiting Partner")
+                if not date_provided:
+                    errors.append("Date Provided")
+                if not interviewer:
+                    errors.append("Assigned Interviewer")
+                if not initial_status:
+                    errors.append("Initial Status")
+
+                if errors:
+                    st.error(
+                        f"Please fill in required fields: "
+                        f"{', '.join(errors)}"
+                    )
                 else:
                     payload = {
                         "project_id": selected_project["id"],
-                        "project_number": selected_project["project_number"],
+                        "project_number": selected_project[
+                            "project_number"
+                        ],
                         "project_name": selected_project["project_name"],
-                        "idc_project_manager": selected_project.get("bvd", ""),
-                        "bv_project_manager": selected_project.get("bv_lead", ""),
+                        "idc_project_manager": selected_project.get(
+                            "bvd", ""
+                        ),
+                        "bv_project_manager": selected_project.get(
+                            "bv_lead", ""
+                        ),
                         "interviewee_name": interviewee_name,
                         "interviewee_title": interviewee_title,
-                        "interviewee_email": interviewee_email,
-                        "interviewee_phone": interviewee_phone,
+                        "interviewee_email": interviewee_email or None,
+                        "interviewee_phone": interviewee_phone or None,
                         "interviewed_org_name": org_name,
-                        "country": country or None,
-                        "industry": industry or None,
-                        "recruiting_partner": recruiting_partner or None,
-                        "date_provided": str(date_provided) if date_provided else None,
+                        "country": country,
+                        "industry": industry,
+                        "recruiting_partner": recruiting_partner,
+                        "date_provided": str(date_provided),
                         "interviewer": interviewer,
                         "scheduling_link": scheduling_link or None,
                         "interview_status": initial_status,
+                        "last_date_of_contact": str(last_contacted)
+                        if last_contacted else None,
                         "interviewer_notes": notes or None,
                     }
                     try:
@@ -312,7 +380,10 @@ def show(API_URL, headers):
                             headers=headers
                         )
                         if r.status_code == 200:
-                            st.success(f"✅ {interviewee_name} added!")
+                            st.success(
+                                f"✅ {interviewee_name} from "
+                                f"{org_name} added successfully!"
+                            )
                             st.rerun()
                         else:
                             st.error(f"Error: {r.text}")
