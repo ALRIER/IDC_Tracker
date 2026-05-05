@@ -59,29 +59,36 @@ def show_sidebar():
         if role == "pm":
             page = st.radio("", [
                 "⏱ Time Tracker",
-                "👥 Interview Sheet"
+                "👥 Interview Sheet",
+                "📈 Project Progress",
             ], label_visibility="collapsed")
+
         elif role == "interviewer":
             page = st.radio("", [
                 "📋 My Interviews"
             ], label_visibility="collapsed")
+
         elif role == "analyst":
             page = st.radio("", [
                 "📊 Dashboard",
                 "📁 By Project",
+                "📈 Project Progress",
                 "📅 Projected Readout",
-                "🔄 Repeat Organisations"
+                "🔄 Repeat Organisations",
             ], label_visibility="collapsed")
+
         elif role == "admin":
             page = st.radio("", [
                 "⏱ Time Tracker",
                 "👥 Interview Sheet",
+                "📈 Project Progress",
                 "📊 Dashboard",
                 "📁 By Project",
                 "📅 Projected Readout",
                 "🔄 Repeat Organisations",
-                "⚙️ Admin Panel"
+                "⚙️ Admin Panel",
             ], label_visibility="collapsed")
+
         else:
             page = "⏱ Time Tracker"
 
@@ -110,6 +117,10 @@ else:
     elif page == "👥 Interview Sheet":
         from pages_modules import pm_interview_sheet
         pm_interview_sheet.show(API_URL, get_headers())
+
+    elif page == "📈 Project Progress":
+        from pages_modules import project_progress
+        project_progress.show(API_URL, get_headers())
 
     elif page == "📋 My Interviews":
         from pages_modules import interviewer_view
