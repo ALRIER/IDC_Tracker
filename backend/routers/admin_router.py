@@ -23,9 +23,8 @@ class UserUpdate(BaseModel):
     interviewer_name: Optional[str] = None
     is_active: Optional[bool] = None
 
-@router.get("/users", dependencies=[Depends(require_role("admin"))])
-def get_users(db: Session = Depends(get_db)):
-    return db.query(User).order_by(User.name).all()
+@router.get("/dropdowns")
+def get_dropdowns(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
 
 @router.post("/users", dependencies=[Depends(require_role("admin"))])
 def create_user(data: UserCreate, db: Session = Depends(get_db)):
