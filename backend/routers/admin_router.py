@@ -23,8 +23,9 @@ class UserUpdate(BaseModel):
     interviewer_name: Optional[str] = None
     is_active: Optional[bool] = None
 
-@router.get("/dropdowns")
-def get_dropdowns(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+@router.get("/users", dependencies=[Depends(require_role("admin"))])
+def get_users(db: Session = Depends(get_db)):
+    return db.query(User).order_by(User.name).all()
 
 @router.post("/users", dependencies=[Depends(require_role("admin"))])
 def create_user(data: UserCreate, db: Session = Depends(get_db)):
@@ -67,7 +68,6 @@ def deactivate_user(user_id: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Never hard delete — just deactivate
     user.is_active = False
     db.commit()
     return {"message": f"User {user.name} deactivated"}
@@ -85,12 +85,17 @@ class DropdownUpdate(BaseModel):
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
 
-@router.get("/dropdowns", dependencies=[Depends(require_role("admin"))])
-def get_dropdowns(db: Session = Depends(get_db)):
+# All authenticated users can READ dropdowns
+@router.get("/dropdowns")
+def get_dropdowns(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
     return db.query(Dropdown).order_by(
         Dropdown.category, Dropdown.sort_order
     ).all()
 
+# Only admins can CREATE/EDIT/DELETE dropdowns
 @router.post("/dropdowns", dependencies=[Depends(require_role("admin"))])
 def create_dropdown(data: DropdownCreate, db: Session = Depends(get_db)):
     existing = db.query(Dropdown).filter(
@@ -98,7 +103,10 @@ def create_dropdown(data: DropdownCreate, db: Session = Depends(get_db)):
         Dropdown.value == data.value
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Value already exists in this category")
+        raise HTTPException(
+            status_code=400,
+            detail="Value already exists in this category"
+        )
 
     dropdown = Dropdown(**data.dict())
     db.add(dropdown)
@@ -112,7 +120,9 @@ def update_dropdown(
     data: DropdownUpdate,
     db: Session = Depends(get_db)
 ):
-    dropdown = db.query(Dropdown).filter(Dropdown.id == dropdown_id).first()
+    dropdown = db.query(Dropdown).filter(
+        Dropdown.id == dropdown_id
+    ).first()
     if not dropdown:
         raise HTTPException(status_code=404, detail="Dropdown not found")
 
@@ -124,7 +134,9 @@ def update_dropdown(
 
 @router.delete("/dropdowns/{dropdown_id}", dependencies=[Depends(require_role("admin"))])
 def delete_dropdown(dropdown_id: str, db: Session = Depends(get_db)):
-    dropdown = db.query(Dropdown).filter(Dropdown.id == dropdown_id).first()
+    dropdown = db.query(Dropdown).filter(
+        Dropdown.id == dropdown_id
+    ).first()
     if not dropdown:
         raise HTTPException(status_code=404, detail="Dropdown not found")
     db.delete(dropdown)
