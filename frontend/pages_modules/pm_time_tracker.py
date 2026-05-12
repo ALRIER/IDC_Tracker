@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import date
 
 def show(API_URL, headers):
-    st.title("⏱ Time Tracker")
+    st.title("⏱ Overall Project Tracker")
 
     # Load projects
     with st.spinner("Loading projects..."):
