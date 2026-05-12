@@ -3,6 +3,24 @@ import requests
 import pandas as pd
 from datetime import date
 
+
+def build_unique_options(df, column_name):
+    if df.empty or column_name not in df.columns:
+        return [""]
+
+    options = (
+        df[column_name]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
+        .tolist()
+    )
+
+    options = sorted([x for x in options if x])
+    return [""] + options
+
+
 def show(API_URL, headers):
     st.title("⏱ Overall Project Tracker")
 
@@ -14,6 +32,11 @@ def show(API_URL, headers):
         except Exception as e:
             st.error(f"Error loading projects: {e}")
             return
+
+    projects_df = pd.DataFrame(projects) if projects else pd.DataFrame()
+
+    bv_lead_options = build_unique_options(projects_df, "bv_lead")
+    bvd_options = build_unique_options(projects_df, "bvd")
 
     tab1, tab2, tab3 = st.tabs([
         "📊 Team View (Excel-style)",
@@ -38,15 +61,32 @@ def show(API_URL, headers):
                     ["Active", "Closed"],
                     default=["Active"]
                 )
+
             with fcol2:
                 bv_leads = ["All"] + sorted(
-                    df["bv_lead"].dropna().unique().tolist()
+                    [
+                        x for x in df["bv_lead"]
+                        .dropna()
+                        .astype(str)
+                        .str.strip()
+                        .unique()
+                        .tolist()
+                        if x
+                    ]
                 )
                 lead_filter = st.selectbox("BV Lead", bv_leads)
 
             with fcol3:
                 bvds = ["All"] + sorted(
-                    df["bvd"].dropna().unique().tolist()
+                    [
+                        x for x in df["bvd"]
+                        .dropna()
+                        .astype(str)
+                        .str.strip()
+                        .unique()
+                        .tolist()
+                        if x
+                    ]
                 )
                 bvd_filter = st.selectbox("IDC PM (BVD)", bvds)
 
@@ -57,16 +97,22 @@ def show(API_URL, headers):
 
             # Apply filters
             filtered = df.copy()
+
             if status_filter:
                 filtered = filtered[
                     filtered["status"].isin(status_filter)
                 ]
+
             if lead_filter != "All":
                 filtered = filtered[
                     filtered["bv_lead"] == lead_filter
                 ]
+
             if bvd_filter != "All":
-                filtered = filtered[filtered["bvd"] == bvd_filter]
+                filtered = filtered[
+                    filtered["bvd"] == bvd_filter
+                ]
+
             if search:
                 filtered = filtered[
                     filtered["project_name"].str.contains(
@@ -78,7 +124,6 @@ def show(API_URL, headers):
             st.divider()
 
             # ── Editable grid ────────────────────────────────────
-            # Select columns to show in the grid
             date_cols = [
                 "booking_date", "kickoff_date", "briefing_date",
                 "ig_draft_from_bv", "ig_draft_to_client",
@@ -101,20 +146,18 @@ def show(API_URL, headers):
                 "notes_status"
             ] + date_cols
 
-            # Keep only existing columns
             existing_cols = [
                 c for c in grid_cols if c in filtered.columns
             ]
+
             grid_df = filtered[existing_cols].copy()
 
-            # Convert date columns to proper date type
             for col in date_cols:
                 if col in grid_df.columns:
                     grid_df[col] = pd.to_datetime(
                         grid_df[col], errors="coerce"
                     ).dt.date
 
-            # Configure columns
             column_config = {
                 "id": st.column_config.TextColumn(
                     "ID", disabled=True, width="small"
@@ -135,11 +178,15 @@ def show(API_URL, headers):
                     options=["Active", "Closed"],
                     width="small"
                 ),
-                "bv_lead": st.column_config.TextColumn(
-                    "BV Lead", width="medium"
+                "bv_lead": st.column_config.SelectboxColumn(
+                    "BV Lead",
+                    options=bv_lead_options,
+                    width="medium"
                 ),
-                "bvd": st.column_config.TextColumn(
-                    "IDC PM", width="medium"
+                "bvd": st.column_config.SelectboxColumn(
+                    "IDC PM",
+                    options=bvd_options,
+                    width="medium"
                 ),
                 "interviews_target": st.column_config.NumberColumn(
                     "Target", width="small", min_value=0
@@ -219,8 +266,8 @@ def show(API_URL, headers):
                 key="time_tracker_grid"
             )
 
-            # ── Save changes button ──────────────────────────────
             col1, col2 = st.columns([1, 4])
+
             with col1:
                 save = st.button(
                     "💾 Save All Changes",
@@ -243,6 +290,7 @@ def show(API_URL, headers):
                     ] + date_cols:
                         if col in row and col != "id":
                             val = row[col]
+
                             if pd.isna(val) if not isinstance(
                                 val, (str, date)
                             ) else False:
@@ -250,8 +298,7 @@ def show(API_URL, headers):
                             elif isinstance(val, date):
                                 payload[col] = str(val)
                             else:
-                                payload[col] = val if val != "" \
-                                    else None
+                                payload[col] = val if val != "" else None
 
                     try:
                         r = requests.patch(
@@ -259,11 +306,13 @@ def show(API_URL, headers):
                             json=payload,
                             headers=headers
                         )
+
                         if r.status_code == 200:
                             changes += 1
                         else:
                             errors += 1
-                    except Exception as e:
+
+                    except Exception:
                         errors += 1
 
                 if errors == 0:
@@ -281,14 +330,15 @@ def show(API_URL, headers):
         if not projects:
             st.info("No projects yet.")
         else:
-            # Filter selector
             project_options = {
                 f"{p['project_name']} ({p['project_number']})": p
                 for p in projects
             }
+
             selected_label = st.selectbox(
                 "Select Project", list(project_options.keys())
             )
+
             p = project_options[selected_label]
 
             completed = p.get("interviews_complete", 0)
@@ -311,28 +361,49 @@ def show(API_URL, headers):
 
             with col2:
                 st.write("### Update")
+
                 new_status = st.selectbox(
                     "Status",
                     ["Active", "Closed"],
                     index=0 if p.get("status") == "Active" else 1,
                     key="d_status"
                 )
-                new_bv_lead = st.text_input(
+
+                current_bv_lead = p.get("bv_lead") or ""
+                detail_bv_lead_options = bv_lead_options.copy()
+
+                if current_bv_lead and current_bv_lead not in detail_bv_lead_options:
+                    detail_bv_lead_options.append(current_bv_lead)
+
+                new_bv_lead = st.selectbox(
                     "BV Lead",
-                    value=p.get("bv_lead") or "",
+                    detail_bv_lead_options,
+                    index=detail_bv_lead_options.index(current_bv_lead)
+                    if current_bv_lead in detail_bv_lead_options else 0,
                     key="d_bvlead"
                 )
-                new_bvd = st.text_input(
+
+                current_bvd = p.get("bvd") or ""
+                detail_bvd_options = bvd_options.copy()
+
+                if current_bvd and current_bvd not in detail_bvd_options:
+                    detail_bvd_options.append(current_bvd)
+
+                new_bvd = st.selectbox(
                     "IDC PM (BVD)",
-                    value=p.get("bvd") or "",
+                    detail_bvd_options,
+                    index=detail_bvd_options.index(current_bvd)
+                    if current_bvd in detail_bvd_options else 0,
                     key="d_bvd"
                 )
+
                 new_target = st.number_input(
                     "Target Interviews",
                     value=target,
                     min_value=1,
                     key="d_target"
                 )
+
                 new_notes = st.text_area(
                     "Notes",
                     value=p.get("notes_status") or "",
@@ -340,6 +411,7 @@ def show(API_URL, headers):
                 )
 
             st.write("### 📅 Milestone Dates")
+
             milestone_fields = [
                 ("booking_date", "Booking Date"),
                 ("kickoff_date", "Kickoff Date"),
@@ -364,9 +436,11 @@ def show(API_URL, headers):
 
             date_values = {}
             date_cols_ui = st.columns(3)
+
             for i, (field, label) in enumerate(milestone_fields):
                 with date_cols_ui[i % 3]:
                     existing = p.get(field)
+
                     date_values[field] = st.date_input(
                         label,
                         value=pd.to_datetime(existing).date()
@@ -382,6 +456,7 @@ def show(API_URL, headers):
                     "interviews_target": new_target,
                     "notes_status": new_notes,
                 }
+
                 for field, _ in milestone_fields:
                     v = date_values[field]
                     payload[field] = str(v) if v else None
@@ -392,11 +467,13 @@ def show(API_URL, headers):
                         json=payload,
                         headers=headers
                     )
+
                     if r.status_code == 200:
                         st.success("✅ Project saved!")
                         st.rerun()
                     else:
                         st.error(f"Error: {r.text}")
+
                 except Exception as e:
                     st.error(f"Error: {e}")
 
@@ -410,20 +487,33 @@ def show(API_URL, headers):
             with col1:
                 project_name = st.text_input("Project Name *")
                 project_number = st.text_input("Project Number *")
+
                 project_type = st.selectbox(
                     "Project Type", ["WP", "SB"]
                 )
-                bv_lead = st.text_input("BV Lead")
+
+                bv_lead = st.selectbox(
+                    "BV Lead",
+                    bv_lead_options
+                )
 
             with col2:
-                bvd = st.text_input("IDC PM (BVD)")
-                interviews_target = st.number_input(
-                    "Target Interviews", value=8, min_value=1
+                bvd = st.selectbox(
+                    "IDC PM (BVD)",
+                    bvd_options
                 )
+
+                interviews_target = st.number_input(
+                    "Target Interviews",
+                    value=8,
+                    min_value=1
+                )
+
                 notes = st.text_area("Notes")
 
             submit = st.form_submit_button(
-                "➕ Create Project", use_container_width=True
+                "➕ Create Project",
+                use_container_width=True
             )
 
             if submit:
@@ -436,22 +526,25 @@ def show(API_URL, headers):
                         "project_name": project_name,
                         "project_number": project_number,
                         "project_type": project_type,
-                        "bv_lead": bv_lead,
-                        "bvd": bvd,
+                        "bv_lead": bv_lead if bv_lead else None,
+                        "bvd": bvd if bvd else None,
                         "interviews_target": interviews_target,
                         "notes_status": notes,
                         "status": "Active"
                     }
+
                     try:
                         r = requests.post(
                             f"{API_URL}/projects/",
                             json=payload,
                             headers=headers
                         )
+
                         if r.status_code == 200:
                             st.success("✅ Project created!")
                             st.rerun()
                         else:
                             st.error(f"Error: {r.text}")
+
                     except Exception as e:
                         st.error(f"Error: {e}")
