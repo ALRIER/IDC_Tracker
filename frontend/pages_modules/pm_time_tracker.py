@@ -47,6 +47,7 @@ def build_unique_options(df, column_name, fallback_options=None):
     fallback_options = fallback_options or []
 
     values = []
+
     if not df.empty and column_name in df.columns:
         values = (
             df[column_name]
@@ -58,11 +59,14 @@ def build_unique_options(df, column_name, fallback_options=None):
         )
 
     combined = values + fallback_options
+
     cleaned = sorted(
-        list({
-            x for x in combined
-            if x and x.lower() not in ["nan", "none", "null"]
-        })
+        list(
+            {
+                x for x in combined
+                if x and str(x).lower() not in ["nan", "none", "null"]
+            }
+        )
     )
 
     return [""] + cleaned
@@ -150,7 +154,7 @@ def format_grid_df(df):
         if col in grid_df.columns:
             grid_df[col] = pd.to_numeric(
                 grid_df[col],
-                errors="coerce"
+                errors="coerce",
             ).fillna(0).astype(int)
 
     for col in DATE_COLS:
@@ -216,8 +220,13 @@ def show(API_URL, headers):
         else:
             df = pd.DataFrame(projects)
 
-            # Safety defaults for missing/null columns
-            for col in ["status", "bv_lead", "bvd", "project_name", "project_number"]:
+            for col in [
+                "status",
+                "bv_lead",
+                "bvd",
+                "project_name",
+                "project_number",
+            ]:
                 if col not in df.columns:
                     df[col] = ""
                 df[col] = df[col].fillna("").astype(str)
@@ -230,7 +239,12 @@ def show(API_URL, headers):
                 status_values = sorted(
                     [x for x in df["status"].dropna().unique().tolist() if x]
                 )
-                default_status = ["Active"] if "Active" in status_values else status_values
+
+                default_status = (
+                    ["Active"]
+                    if "Active" in status_values
+                    else status_values
+                )
 
                 status_filter = st.multiselect(
                     "Status",
@@ -253,13 +267,19 @@ def show(API_URL, headers):
             filtered = df.copy()
 
             if status_filter:
-                filtered = filtered[filtered["status"].isin(status_filter)]
+                filtered = filtered[
+                    filtered["status"].isin(status_filter)
+                ]
 
             if lead_filter != "All":
-                filtered = filtered[filtered["bv_lead"] == lead_filter]
+                filtered = filtered[
+                    filtered["bv_lead"] == lead_filter
+                ]
 
             if bvd_filter != "All":
-                filtered = filtered[filtered["bvd"] == bvd_filter]
+                filtered = filtered[
+                    filtered["bvd"] == bvd_filter
+                ]
 
             if search:
                 filtered = filtered[
@@ -293,7 +313,11 @@ def show(API_URL, headers):
                 "notes_status",
             ] + DATE_COLS
 
-            existing_cols = [c for c in grid_cols if c in filtered.columns]
+            existing_cols = [
+                c for c in grid_cols
+                if c in filtered.columns
+            ]
+
             grid_df = format_grid_df(filtered[existing_cols])
 
             original_by_id = grid_df.set_index("id").to_dict("index")
@@ -420,7 +444,6 @@ def show(API_URL, headers):
                         if not values_are_equal(old_value, new_value):
                             payload[col] = clean_payload_value(new_value)
 
-                    # Do not PATCH rows that were not modified
                     if not payload:
                         continue
 
@@ -438,20 +461,31 @@ def show(API_URL, headers):
                             saved_rows += 1
                         else:
                             errors += 1
-                            project_label = row.get("project_number") or project_id
+                            project_label = (
+                                row.get("project_number")
+                                or project_id
+                            )
                             error_details.append(
-                                f"{project_label}: {r.status_code} - {r.text[:500]}"
+                                f"{project_label}: "
+                                f"{r.status_code} - {r.text[:500]}"
                             )
 
                     except Exception as e:
                         errors += 1
-                        project_label = row.get("project_number") or project_id
-                        error_details.append(f"{project_label}: {str(e)}")
+                        project_label = (
+                            row.get("project_number")
+                            or project_id
+                        )
+                        error_details.append(
+                            f"{project_label}: {str(e)}"
+                        )
 
                 if changed_rows == 0:
                     st.info("No changes detected.")
                 elif errors == 0:
-                    st.success(f"✅ {saved_rows} changed project(s) saved successfully.")
+                    st.success(
+                        f"✅ {saved_rows} changed project(s) saved successfully."
+                    )
                     st.rerun()
                 else:
                     st.warning(
@@ -510,19 +544,25 @@ def show(API_URL, headers):
 
                 current_bv_lead = p.get("bv_lead") or ""
                 detail_bv_leads = bv_lead_options.copy()
-                if current_bv_lead and current_bv_lead not in detail_bv_leads:
+
+                if (
+                    current_bv_lead
+                    and current_bv_lead not in detail_bv_leads
+                ):
                     detail_bv_leads.append(current_bv_lead)
 
                 new_bv_lead = st.selectbox(
                     "BV Lead",
                     detail_bv_leads,
                     index=detail_bv_leads.index(current_bv_lead)
-                    if current_bv_lead in detail_bv_leads else 0,
+                    if current_bv_lead in detail_bv_leads
+                    else 0,
                     key="d_bvlead",
                 )
 
                 current_bvd = p.get("bvd") or ""
                 detail_bvds = bvd_options.copy()
+
                 if current_bvd and current_bvd not in detail_bvds:
                     detail_bvds.append(current_bvd)
 
@@ -530,7 +570,8 @@ def show(API_URL, headers):
                     "IDC PM (BVD)",
                     detail_bvds,
                     index=detail_bvds.index(current_bvd)
-                    if current_bvd in detail_bvds else 0,
+                    if current_bvd in detail_bvds
+                    else 0,
                     key="d_bvd",
                 )
 
@@ -578,6 +619,7 @@ def show(API_URL, headers):
             for i, (field, label) in enumerate(milestone_fields):
                 with date_cols_ui[i % 3]:
                     existing = p.get(field)
+
                     date_values[field] = st.date_input(
                         label,
                         value=to_date_or_none(existing),
@@ -595,7 +637,9 @@ def show(API_URL, headers):
                 }
 
                 for field, _ in milestone_fields:
-                    payload[field] = clean_payload_value(date_values[field])
+                    payload[field] = clean_payload_value(
+                        date_values[field]
+                    )
 
                 try:
                     r = patch_project(
@@ -665,7 +709,9 @@ def show(API_URL, headers):
                         "project_type": clean_payload_value(project_type),
                         "bv_lead": clean_payload_value(bv_lead),
                         "bvd": clean_payload_value(bvd),
-                        "interviews_target": clean_payload_value(interviews_target),
+                        "interviews_target": clean_payload_value(
+                            interviews_target
+                        ),
                         "notes_status": clean_payload_value(notes),
                         "status": "Active",
                     }
