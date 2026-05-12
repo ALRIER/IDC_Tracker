@@ -58,7 +58,7 @@ def show_sidebar():
 
         if role == "pm":
             page = st.radio("", [
-                "⏱ Time Tracker",
+                "⏱ Overall Project Tracker",
                 "👥 Interview Sheet",
                 "📈 Project Progress",
             ], label_visibility="collapsed")
@@ -79,7 +79,7 @@ def show_sidebar():
 
         elif role == "admin":
             page = st.radio("", [
-                "⏱ Time Tracker",
+                "⏱ Overall Project Tracker",
                 "👥 Interview Sheet",
                 "📈 Project Progress",
                 "📊 Dashboard",
@@ -90,7 +90,7 @@ def show_sidebar():
             ], label_visibility="collapsed")
 
         else:
-            page = "⏱ Time Tracker"
+            page = "⏱ Overall Project Tracker"
 
         st.divider()
         if st.button("Sign Out", use_container_width=True):
@@ -110,7 +110,7 @@ if not st.session_state.logged_in:
 else:
     page = show_sidebar()
 
-    if page == "⏱ Time Tracker":
+    if page == "⏱ Overall Project Tracker":
         from pages_modules import pm_time_tracker
         pm_time_tracker.show(API_URL, get_headers())
 
