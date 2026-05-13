@@ -5,9 +5,10 @@ API_URL = "https://idc-tracker-y0yo.onrender.com"
 
 st.set_page_config(
     page_title="IDC BV Tracker",
-    page_icon="📊",
+    page_icon="",
     layout="wide"
 )
+
 
 def login(email, password):
     try:
@@ -22,16 +23,21 @@ def login(email, password):
         st.error(f"Connection error: {e}")
         return None
 
+
 def show_login():
     col1, col2, col3 = st.columns([1, 2, 1])
+
     with col2:
-        st.title("📊 IDC BV Tracker")
+        st.title("IDC BV Tracker")
         st.subheader("Sign in to your account")
 
         with st.form("login_form"):
             email = st.text_input("Email", placeholder="your@email.com")
             password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Sign In", use_container_width=True)
+            submit = st.form_submit_button(
+                "Sign In",
+                use_container_width=True
+            )
 
             if submit:
                 if not email or not password:
@@ -39,17 +45,19 @@ def show_login():
                 else:
                     with st.spinner("Signing in..."):
                         result = login(email, password)
-                    if result:
-                        st.session_state.token = result["access_token"]
-                        st.session_state.user = result["user"]
-                        st.session_state.logged_in = True
-                        st.rerun()
-                    else:
-                        st.error("Invalid email or password")
+
+                        if result:
+                            st.session_state.token = result["access_token"]
+                            st.session_state.user = result["user"]
+                            st.session_state.logged_in = True
+                            st.rerun()
+                        else:
+                            st.error("Invalid email or password")
+
 
 def show_sidebar():
     with st.sidebar:
-        st.write(f"👤 **{st.session_state.user['name']}**")
+        st.write(f"**{st.session_state.user['name']}**")
         st.write(f"Role: `{st.session_state.user['role']}`")
         st.divider()
         st.write("**Navigation**")
@@ -57,56 +65,79 @@ def show_sidebar():
         role = st.session_state.user["role"]
 
         if role == "pm":
-            page = st.radio("", [
-                "⏱ Overall Project Tracker",
-                "👥 Interview Sheet",
-                "📈 Project Progress",
-            ], label_visibility="collapsed")
+            page = st.radio(
+                "",
+                [
+                    "⏱ Overall Project Tracker",
+                    "Interview Sheet",
+                    "Project Progress",
+                ],
+                label_visibility="collapsed"
+            )
 
         elif role == "interviewer":
-            page = st.radio("", [
-                "📋 My Interviews"
-            ], label_visibility="collapsed")
+            page = st.radio(
+                "",
+                [
+                    "My Interviews",
+                ],
+                label_visibility="collapsed"
+            )
 
         elif role == "analyst":
-            page = st.radio("", [
-                "📊 Dashboard",
-                "📁 By Project",
-                "📈 Project Progress",
-                "📅 Projected Readout",
-                "🔄 Repeat Organisations",
-            ], label_visibility="collapsed")
+            page = st.radio(
+                "",
+                [
+                    "⏱ Overall Project Tracker",
+                    "Interview Sheet",
+                    "Project Progress",
+                    "Dashboard",
+                    "By Project",
+                    "Projected Readout",
+                    "Repeat Organisations",
+                ],
+                label_visibility="collapsed"
+            )
 
         elif role == "admin":
-            page = st.radio("", [
-                "⏱ Overall Project Tracker",
-                "👥 Interview Sheet",
-                "📈 Project Progress",
-                "📊 Dashboard",
-                "📁 By Project",
-                "📅 Projected Readout",
-                "🔄 Repeat Organisations",
-                "⚙️ Admin Panel",
-            ], label_visibility="collapsed")
+            page = st.radio(
+                "",
+                [
+                    "⏱ Overall Project Tracker",
+                    "Interview Sheet",
+                    "Project Progress",
+                    "Dashboard",
+                    "By Project",
+                    "Projected Readout",
+                    "Repeat Organisations",
+                    "⚙️ Admin Panel",
+                ],
+                label_visibility="collapsed"
+            )
 
         else:
             page = "⏱ Overall Project Tracker"
 
         st.divider()
+
         if st.button("Sign Out", use_container_width=True):
             st.session_state.clear()
             st.rerun()
 
         return page
 
+
 def get_headers():
     return {"Authorization": f"Bearer {st.session_state.token}"}
+
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+
 if not st.session_state.logged_in:
     show_login()
+
 else:
     page = show_sidebar()
 
@@ -114,31 +145,31 @@ else:
         from pages_modules import pm_time_tracker
         pm_time_tracker.show(API_URL, get_headers())
 
-    elif page == "👥 Interview Sheet":
+    elif page == "Interview Sheet":
         from pages_modules import pm_interview_sheet
         pm_interview_sheet.show(API_URL, get_headers())
 
-    elif page == "📈 Project Progress":
+    elif page == "Project Progress":
         from pages_modules import project_progress
         project_progress.show(API_URL, get_headers())
 
-    elif page == "📋 My Interviews":
+    elif page == "My Interviews":
         from pages_modules import interviewer_view
         interviewer_view.show(API_URL, get_headers())
 
-    elif page == "📊 Dashboard":
+    elif page == "Dashboard":
         from pages_modules import analyst_dashboard
         analyst_dashboard.show(API_URL, get_headers())
 
-    elif page == "📁 By Project":
+    elif page == "By Project":
         from pages_modules import analyst_by_project
         analyst_by_project.show(API_URL, get_headers())
 
-    elif page == "📅 Projected Readout":
+    elif page == "Projected Readout":
         from pages_modules import analyst_readout
         analyst_readout.show(API_URL, get_headers())
 
-    elif page == "🔄 Repeat Organisations":
+    elif page == "Repeat Organisations":
         from pages_modules import analyst_repeat_orgs
         analyst_repeat_orgs.show(API_URL, get_headers())
 
