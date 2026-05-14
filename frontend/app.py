@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import types
 
 API_URL = "https://idc-tracker-y0yo.onrender.com"
 
@@ -10,7 +9,7 @@ API_URL = "https://idc-tracker-y0yo.onrender.com"
 # Turn off by changing True to False.
 # ─────────────────────────────────────────────────────────────
 DEMO_PRIVACY_MODE = True
-MASK_INTERNAL_NAMES = False  # set True if you also want to hide BV Lead / IDC PM / Interviewer names
+MASK_INTERNAL_NAMES = False  # Set True to hide BV Lead / IDC PM / Interviewer names too
 
 
 def redact_value(key, value, row=None):
@@ -93,11 +92,13 @@ def redact_obj(obj):
 
     if isinstance(obj, dict):
         redacted = {}
+
         for key, value in obj.items():
             if isinstance(value, (dict, list)):
                 redacted[key] = redact_obj(value)
             else:
                 redacted[key] = redact_value(key, value, obj)
+
         return redacted
 
     return obj
@@ -135,9 +136,12 @@ def login(email, password):
             f"{API_URL}/auth/login",
             data={"username": email, "password": password}
         )
+
         if response.status_code == 200:
             return response.json()
+
         return None
+
     except Exception as e:
         st.error(f"Connection error: {e}")
         return None
@@ -153,7 +157,11 @@ def show_login():
         with st.form("login_form"):
             email = st.text_input("Email", placeholder="your@email.com")
             password = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Sign In", use_container_width=True)
+
+            submit = st.form_submit_button(
+                "Sign In",
+                use_container_width=True
+            )
 
             if submit:
                 if not email or not password:
@@ -161,6 +169,7 @@ def show_login():
                 else:
                     with st.spinner("Signing in..."):
                         result = login(email, password)
+
                         if result:
                             st.session_state.token = result["access_token"]
                             st.session_state.user = result["user"]
@@ -203,9 +212,11 @@ def show_sidebar():
             page = st.radio(
                 "",
                 [
+                    "⏱ Overall Project Tracker",
+                    "Interview Sheet",
+                    "Project Progress",
                     "Dashboard",
                     "By Project",
-                    "Project Progress",
                     "Projected Readout",
                     "Repeat Organisations",
                 ],
@@ -234,7 +245,7 @@ def show_sidebar():
         st.divider()
 
         if DEMO_PRIVACY_MODE:
-            st.warning("Demo privacy mode is ON. Sensitive data is visually redacted.")
+            st.warning("Demo mode")
 
         if st.button("Sign Out", use_container_width=True):
             st.session_state.clear()
