@@ -1,7 +1,126 @@
 import streamlit as st
 import requests
+import types
 
 API_URL = "https://idc-tracker-y0yo.onrender.com"
+
+# ─────────────────────────────────────────────────────────────
+# TEMPORARY DEMO PRIVACY MODE
+# Frontend-only masking. Does NOT delete or modify database data.
+# Turn off by changing True to False.
+# ─────────────────────────────────────────────────────────────
+DEMO_PRIVACY_MODE = True
+MASK_INTERNAL_NAMES = False  # set True if you also want to hide BV Lead / IDC PM / Interviewer names
+
+
+def redact_value(key, value, row=None):
+    row = row or {}
+    project_number = row.get("project_number") or row.get("Project #") or "XXXXX"
+
+    if not DEMO_PRIVACY_MODE:
+        return value
+
+    sensitive_blank = {
+        "interviewee_email",
+        "interviewee_phone",
+        "scheduling_link",
+        "interviewer_notes",
+        "notes_status",
+        "notes",
+    }
+
+    sensitive_contact = {
+        "interviewee_name",
+        "name",
+    }
+
+    sensitive_title = {
+        "interviewee_title",
+        "title",
+    }
+
+    sensitive_company = {
+        "interviewed_org_name",
+        "org_name",
+        "company",
+        "company_name",
+        "organisation",
+        "organization",
+    }
+
+    project_name_fields = {
+        "project_name",
+    }
+
+    internal_name_fields = {
+        "bv_lead",
+        "bvd",
+        "idc_project_manager",
+        "bv_project_manager",
+        "interviewer",
+    }
+
+    if key in sensitive_blank:
+        return ""
+
+    if key in sensitive_contact:
+        return "Redacted Contact"
+
+    if key in sensitive_title:
+        return "Redacted Title"
+
+    if key in sensitive_company:
+        return "Redacted Organisation"
+
+    if key in project_name_fields:
+        return f"Project {project_number}"
+
+    if key == "projects":
+        return ["Redacted Project List"]
+
+    if MASK_INTERNAL_NAMES and key in internal_name_fields:
+        return "Internal User"
+
+    return value
+
+
+def redact_obj(obj):
+    if not DEMO_PRIVACY_MODE:
+        return obj
+
+    if isinstance(obj, list):
+        return [redact_obj(item) for item in obj]
+
+    if isinstance(obj, dict):
+        redacted = {}
+        for key, value in obj.items():
+            if isinstance(value, (dict, list)):
+                redacted[key] = redact_obj(value)
+            else:
+                redacted[key] = redact_value(key, value, obj)
+        return redacted
+
+    return obj
+
+
+_original_get = requests.get
+
+
+def masked_get(*args, **kwargs):
+    response = _original_get(*args, **kwargs)
+    original_json = response.json
+
+    def safe_json():
+        data = original_json()
+        return redact_obj(data)
+
+    response.json = safe_json
+    return response
+
+
+if DEMO_PRIVACY_MODE:
+    requests.get = masked_get
+
 
 st.set_page_config(
     page_title="IDC BV Tracker",
@@ -34,10 +153,7 @@ def show_login():
         with st.form("login_form"):
             email = st.text_input("Email", placeholder="your@email.com")
             password = st.text_input("Password", type="password")
-            submit = st.form_submit_button(
-                "Sign In",
-                use_container_width=True
-            )
+            submit = st.form_submit_button("Sign In", use_container_width=True)
 
             if submit:
                 if not email or not password:
@@ -45,7 +161,6 @@ def show_login():
                 else:
                     with st.spinner("Signing in..."):
                         result = login(email, password)
-
                         if result:
                             st.session_state.token = result["access_token"]
                             st.session_state.user = result["user"]
@@ -88,11 +203,9 @@ def show_sidebar():
             page = st.radio(
                 "",
                 [
-                    "⏱ Overall Project Tracker",
-                    "Interview Sheet",
-                    "Project Progress",
                     "Dashboard",
                     "By Project",
+                    "Project Progress",
                     "Projected Readout",
                     "Repeat Organisations",
                 ],
@@ -119,6 +232,9 @@ def show_sidebar():
             page = "⏱ Overall Project Tracker"
 
         st.divider()
+
+        if DEMO_PRIVACY_MODE:
+            st.warning("Demo privacy mode is ON. Sensitive data is visually redacted.")
 
         if st.button("Sign Out", use_container_width=True):
             st.session_state.clear()
